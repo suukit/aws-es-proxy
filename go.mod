@@ -3,7 +3,12 @@ module github.com/abutaha/aws-es-proxy
 go 1.14
 
 require (
-	github.com/aws/aws-sdk-go v1.34.28
+	github.com/aws/aws-sdk-go-v2 v1.5.0
+	github.com/aws/aws-sdk-go-v2/config v1.2.0
+	github.com/aws/aws-sdk-go-v2/credentials v1.2.0
+	github.com/aws/aws-sdk-go-v2/service/elasticsearchservice v1.3.0
+	github.com/aws/aws-sdk-go-v2/service/sts v1.4.0
+	github.com/golang/protobuf v1.4.3 // indirect
 	github.com/prometheus/client_golang v1.11.0
 	github.com/sirupsen/logrus v1.6.0
 	go.mongodb.org/mongo-driver v1.5.1
