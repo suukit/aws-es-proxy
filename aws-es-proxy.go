@@ -482,6 +482,7 @@ func LookupEnvOrBool(key string, defaultVal bool) bool {
 		}
 		return v
 	}
+	return defaultVal
 }
 
 func main() {
