@@ -17,6 +17,7 @@ import (
 	"path"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -455,6 +456,34 @@ func copyHeaders(dst, src http.Header) {
 	}
 }
 
+func LookupEnvOrString(key string, defaultVal string) string {
+	if val, ok := os.LookupEnv(key); ok {
+		return val
+	}
+	return defaultVal
+}
+
+func LookupEnvOrInt(key string, defaultVal int) int {
+	if val, ok := os.LookupEnv(key); ok {
+		v, err := strconv.Atoi(val)
+		if err != nil {
+			log.Fatalf("LookupEnvOrInt[%s]: %v", key, err)
+		}
+		return v
+	}
+	return defaultVal
+}
+
+func LookupEnvOrBool(key string, defaultVal bool) bool {
+	if val, ok := os.LookupEnv(key); ok {
+		v, err := strconv.ParseBool(val)
+		if err != nil {
+			log.Fatalf("LookupEnvOrBool[%s]: %v", key, err)
+		}
+		return v
+	}
+}
+
 func main() {
 
 	var (
@@ -478,33 +507,29 @@ func main() {
 		assumeRole      string
 	)
 
-	flag.StringVar(&endpoint, "endpoint", "", "Amazon ElasticSearch Endpoint (e.g: https://dummy-host.eu-west-1.es.amazonaws.com)")
-	flag.StringVar(&listenAddress, "listen", "127.0.0.1:9200", "Local TCP port to listen on")
-	flag.BoolVar(&verbose, "verbose", false, "Print user requests")
-	flag.BoolVar(&logtofile, "log-to-file", false, "Log user requests and ElasticSearch responses to files")
-	flag.BoolVar(&prettify, "pretty", false, "Prettify verbose and file output")
-	flag.BoolVar(&nosignreq, "no-sign-reqs", false, "Disable AWS Signature v4")
-	flag.BoolVar(&debug, "debug", false, "Print debug messages")
+	flag.StringVar(&endpoint, "endpoint", LookupEnvOrString("ENDPOINT", ""), "Amazon ElasticSearch Endpoint (e.g: https://dummy-host.eu-west-1.es.amazonaws.com)")
+	flag.StringVar(&listenAddress, "listen", LookupEnvOrString("LISTEN_ADDRESS", "127.0.0.1:9200"), "Local TCP port to listen on")
+	flag.BoolVar(&verbose, "verbose", LookupEnvOrBool("VERBOSE", false), "Print user requests")
+	flag.BoolVar(&logtofile, "log-to-file", LookupEnvOrBool("LOG_TO_FILE", false), "Log user requests and ElasticSearch responses to files")
+	flag.BoolVar(&prettify, "pretty", LookupEnvOrBool("PRETTIFY", false), "Prettify verbose and file output")
+	flag.BoolVar(&nosignreq, "no-sign-reqs", LookupEnvOrBool("NO_SIG_REQS", false), "Disable AWS Signature v4")
+	flag.BoolVar(&debug, "debug", LookupEnvOrBool("DEBUG", false), "Print debug messages")
 	flag.BoolVar(&ver, "version", false, "Print aws-es-proxy version")
-	flag.IntVar(&timeout, "timeout", 15, "Set a request timeout to ES. Specify in seconds, defaults to 15")
-	flag.BoolVar(&auth, "auth", false, "Require HTTP Basic Auth")
-	flag.StringVar(&username, "username", "", "HTTP Basic Auth Username")
-	flag.StringVar(&password, "password", "", "HTTP Basic Auth Password")
-	flag.StringVar(&realm, "realm", "", "Authentication Required")
-	flag.BoolVar(&remoteTerminate, "remote-terminate", false, "Allow HTTP remote termination")
-	flag.StringVar(&assumeRole, "assume", "", "Optionally specify role to assume")
+	flag.IntVar(&timeout, "timeout", LookupEnvOrInt("TIMEOUT", 15), "Set a request timeout to ES. Specify in seconds, defaults to 15")
+	flag.BoolVar(&auth, "auth", LookupEnvOrBool("AUTH", false), "Require HTTP Basic Auth")
+	flag.StringVar(&username, "username", LookupEnvOrString("USERNAME", ""), "HTTP Basic Auth Username")
+	flag.StringVar(&password, "password", LookupEnvOrString("PASSWORD", ""), "HTTP Basic Auth Password")
+	flag.StringVar(&realm, "realm", LookupEnvOrString("REALM", ""), "Authentication Required")
+	flag.BoolVar(&remoteTerminate, "remote-terminate", LookupEnvOrBool("REMOTE_TERMINATE", false), "Allow HTTP remote termination")
+	flag.StringVar(&assumeRole, "assume", LookupEnvOrString("ASSUME", ""), "Optionally specify role to assume")
 	flag.Parse()
 
 	if endpoint == "" {
-		if v, ok := os.LookupEnv(strings.ToUpper("endpoint")); ok {
-			endpoint = v
-		} else {
-			text := "You need to specify Amazon ElasticSearch endpoint.\n" +
-				"You can use either argument '-endpoint' OR environment variable 'ENDPOINT'.\n" +
-				"Please run with '-h' for a list of available arguments."
-			fmt.Println(text)
-			os.Exit(1)
-		}
+		text := "You need to specify Amazon ElasticSearch endpoint.\n" +
+			"You can use either argument '-endpoint' OR environment variable 'ENDPOINT'.\n" +
+			"Please run with '-h' for a list of available arguments."
+		fmt.Println(text)
+		os.Exit(1)
 	}
 
 	if debug {
