@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"crypto/subtle"
+	"crypto/tls"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -37,7 +38,6 @@ import (
 )
 
 func logger(debug bool) {
-
 	formatFilePath := func(path string) string {
 		arr := strings.Split(path, "/")
 		return arr[len(arr)-1]
@@ -122,7 +122,6 @@ var (
 )
 
 func newProxy(args ...interface{}) *proxy {
-
 	noRedirect := func(req *http.Request, via []*http.Request) error {
 		return http.ErrUseLastResponse
 	}
@@ -152,6 +151,8 @@ func newProxy(args ...interface{}) *proxy {
 		remoteTerminate: args[10].(bool),
 		assumeRole:      args[11].(string),
 		exposeMetrics:   args[12].(bool),
+		region:          args[12].(string),
+		service:         "es",
 	}
 }
 
@@ -188,9 +189,8 @@ func (p *proxy) parseEndpoint() error {
 	p.scheme = link.Scheme
 	p.host = link.Host
 
-	// AWS SignV4 enabled, extract required parts for signing process
-	if !p.nosignreq {
-
+	// AWS SignV4 enabled, extract required parts for signing process (if region flag is not supplied)
+	if !p.nosignreq && p.region == "" {
 		split := strings.SplitAfterN(link.Hostname(), ".", 2)
 
 		if len(split) < 2 {
@@ -411,7 +411,6 @@ func (p *proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if p.logtofile {
-
 		requestID := primitive.NewObjectID().Hex()
 
 		reqStruct := &requestStruct{
@@ -500,7 +499,6 @@ func copyHeaders(dst, src http.Header) {
 				dst.Add(k, v)
 			}
 		}
-
 	}
 }
 
@@ -528,6 +526,8 @@ func main() {
 		exposeMetrics        bool
 		metricsListenAddress string
 		metricsPort          int
+		region               string
+		insecure             bool
 	)
 
 	flag.StringVar(&endpoint, "endpoint", "", "Amazon ElasticSearch Endpoint (e.g: https://dummy-host.eu-west-1.es.amazonaws.com)")
@@ -548,6 +548,8 @@ func main() {
 	flag.BoolVar(&exposeMetrics, "expose-metrics", false, "Expose prometheus metrics")
 	flag.StringVar(&metricsListenAddress, "metrics-listen", "127.0.0.1", "IP to bind to for metrics")
 	flag.IntVar(&metricsPort, "metrics-port", 9100, "Port for metrics")
+	flag.StringVar(&region, "region", "", "AWS Region, optional (ex. us-west-2)")
+	flag.BoolVar(&insecure, "insecure", false, "Verify SSL")
 	flag.Parse()
 
 	if endpoint == "" {
@@ -596,7 +598,14 @@ func main() {
 		remoteTerminate,
 		assumeRole,
 		exposeMetrics,
+		region,
 	)
+
+	if insecure == true {
+		p.httpClient.Transport = &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		}
+	}
 
 	if err = p.parseEndpoint(); err != nil {
 		logrus.Fatalln(err)
@@ -604,7 +613,6 @@ func main() {
 	}
 
 	if p.logtofile {
-
 		requestFname := fmt.Sprintf("request-%s.log", primitive.NewObjectID().Hex())
 		if fileRequest, err = os.Create(requestFname); err != nil {
 			log.Fatalln(err.Error())
@@ -619,7 +627,6 @@ func main() {
 
 		p.fileRequest = fileRequest
 		p.fileResponse = fileResponse
-
 	}
 
 	go func() {
